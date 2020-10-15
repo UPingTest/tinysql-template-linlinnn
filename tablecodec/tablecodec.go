@@ -72,7 +72,17 @@ func EncodeRowKeyWithHandle(tableID int64, handle int64) kv.Key {
 // DecodeRecordKey decodes the key and gets the tableID, handle.
 func DecodeRecordKey(key kv.Key) (tableID int64, handle int64, err error) {
 	/* Your code here */
+	if len(key) != RecordRowKeyLen || !hasTablePrefix(key) || !hasRecordPrefixSep(key[prefixLen-2:]) {
+		return 0, 0, errInvalidKey.GenWithStack("invalid key - %q", key)
+	}
+	tableID = convert2Int64(key[tablePrefixLength:])
+	handle = convert2Int64(key[prefixLen:])
 	return
+}
+
+func convert2Int64(buf []byte) int64 {
+	u := binary.BigEndian.Uint64(buf)
+	return codec.DecodeCmpUintToInt(u)
 }
 
 // appendTableIndexPrefix appends table index prefix  "t[tableID]_i".
@@ -95,7 +105,14 @@ func EncodeIndexSeekKey(tableID int64, idxID int64, encodedValue []byte) kv.Key 
 // DecodeIndexKeyPrefix decodes the key and gets the tableID, indexID, indexValues.
 func DecodeIndexKeyPrefix(key kv.Key) (tableID int64, indexID int64, indexValues []byte, err error) {
 	/* Your code here */
-	return tableID, indexID, indexValues, nil
+	if len(key) < RecordRowKeyLen || !hasTablePrefix(key) || !hasIndexPrefixSep(key[prefixLen-2:]) {
+		err = errInvalidKey.GenWithStack("invalid key - %q", key)
+		return
+	}
+	tableID = convert2Int64(key[tablePrefixLength:])
+	indexID = convert2Int64(key[prefixLen:])
+	indexValues = key[RecordRowKeyLen:]
+	return
 }
 
 // DecodeIndexKey decodes the key and gets the tableID, indexID, indexValues.
@@ -160,6 +177,10 @@ func hasTablePrefix(key kv.Key) bool {
 
 func hasRecordPrefixSep(key kv.Key) bool {
 	return key[0] == recordPrefixSep[0] && key[1] == recordPrefixSep[1]
+}
+
+func hasIndexPrefixSep(key kv.Key) bool {
+	return key[0] == indexPrefixSep[0] && key[1] == indexPrefixSep[1]
 }
 
 // DecodeMetaKey decodes the key and get the meta key and meta field.
